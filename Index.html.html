@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=375, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Glücksrad</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+    :root {
+      --bg:    #08060f;
+      --gold:  #f0c040;
+      --gold2: #c8960c;
+      --gold3: #ffe599;
+      --glow:  rgba(240,192,64,0.5);
+    }
+
+    html, body {
+      width:100%; height:100%;
+      background: radial-gradient(ellipse at 50% 0%, #1a1020 0%, #08060f 70%);
+      color:#fff;
+      font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+      overflow:hidden;
+      display:flex; flex-direction:column; align-items:center;
+      user-select:none;
+    }
+
+    #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+
+    /* ══════════════════════════════
+       INTRO SCREEN
+    ══════════════════════════════ */
+    #introScreen {
+      position:relative; z-index:10;
+      width:375px; height:100vh;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:20px 24px;
+      gap:20px;
+      transition: opacity 0.6s, transform 0.6s;
+      overflow:hidden;
+    }
+    #introScreen.exit {
+      opacity:0; transform:scale(0.92) translateY(-20px); pointer-events:none;
+    }
+
+    .intro-icon {
+      font-size:48px; line-height:1;
+      filter: drop-shadow(0 0 20px rgba(240,192,64,0.7));
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform:translateY(0); }
+      50%      { transform:translateY(-10px); }
+    }
+
+    .intro-question {
+      text-align:center;
+    }
+    .intro-question h2 {
+      font-size:19px; font-weight:700; line-height:1.35;
+      background: linear-gradient(160deg, var(--gold3) 0%, var(--gold) 50%, var(--gold2) 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text;
+      filter: drop-shadow(0 0 12px rgba(240,192,64,0.5));
+      margin-bottom:8px;
+    }
+    .intro-question p {
+      font-size:14px; color:rgba(255,255,255,0.55); letter-spacing:0.02em;
+    }
+
+    /* Number input panel */
+    .input-panel {
+      width:100%;
+      background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      border:1px solid rgba(240,192,64,0.25);
+      border-radius:24px;
+      padding:16px 16px 16px;
+      display:flex; flex-direction:column; align-items:center; gap:12px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .input-label {
+      font-size:12px; font-weight:600; letter-spacing:0.18em;
+      text-transform:uppercase; color:var(--gold); opacity:0.8;
+    }
+
+    /* Big display number */
+    .num-display {
+      font-size:56px; font-weight:900; line-height:1;
+      min-width:120px; text-align:center;
+      background: linear-gradient(160deg, #fff 0%, var(--gold3) 40%, var(--gold) 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text;
+      filter: drop-shadow(0 0 16px var(--gold));
+      letter-spacing:-2px;
+    }
+    .num-display.empty { opacity:0.2; filter:none; -webkit-text-fill-color:#fff; }
+
+    /* Number pad */
+    .numpad {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%;
+    }
+    .numpad-key {
+      height:46px; border:none; border-radius:14px; cursor:pointer;
+      font-size:20px; font-weight:700; color:#fff;
+      background: rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+      transition: background 0.1s, transform 0.1s;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .numpad-key:active { background:rgba(240,192,64,0.2); transform:scale(0.93); }
+    .numpad-key.key-del { font-size:18px; color:rgba(255,100,100,0.85); }
+    .numpad-key.key-0   { grid-column:2; }
+
+    /* Confirm button */
+    .btn-confirm {
+      width:100%; height:54px; border:none; border-radius:27px;
+      font-size:19px; font-weight:900; letter-spacing:0.12em; text-transform:uppercase;
+      color:#1a0e00; cursor:pointer;
+      background: linear-gradient(145deg, var(--gold3) 0%, var(--gold) 45%, var(--gold2) 100%);
+      box-shadow: 0 4px 0 #7a5a00, 0 6px 28px rgba(240,192,64,0.45), inset 0 1px 0 rgba(255,255,255,0.6);
+      transition: transform 0.1s, box-shadow 0.1s, opacity 0.25s, filter 0.25s;
+      opacity:0.32; filter:grayscale(60%);
+      overflow:hidden; position:relative;
+    }
+    .btn-confirm.active { opacity:1; filter:grayscale(0%); cursor:pointer; }
+    .btn-confirm.active::before {
+      content:'';
+      position:absolute; top:0; left:-60%; width:40%; height:100%;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.38),transparent);
+      animation:shimmer 2.5s ease-in-out infinite;
+    }
+    .btn-confirm.active:active { transform:translateY(3px); box-shadow:0 1px 0 #7a5a00,0 3px 12px rgba(240,192,64,0.4); }
+    @keyframes shimmer { 0%{left:-60%} 60%,100%{left:130%} }
+
+    /* ══════════════════════════════
+       WHEEL SCREEN
+    ══════════════════════════════ */
+    #wheelScreen {
+      position:absolute; z-index:9;
+      top:0; left:50%; transform:translateX(-50%);
+      width:375px; height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:space-between;
+      padding:28px 0 30px;
+      opacity:0; pointer-events:none;
+      transition: opacity 0.7s 0.3s, transform 0.7s 0.3s;
+      transform:translateX(-50%) scale(1.05) translateY(20px);
+    }
+    #wheelScreen.visible {
+      opacity:1; pointer-events:auto;
+      transform:translateX(-50%) scale(1) translateY(0);
+    }
+
+    h1 {
+      font-size:30px; font-weight:800; letter-spacing:0.06em; line-height:1;
+      background:linear-gradient(160deg,var(--gold3) 0%,var(--gold) 45%,var(--gold2) 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text;
+      filter:drop-shadow(0 0 18px rgba(240,192,64,0.6));
+    }
+    .sub-max {
+      margin-top:4px; font-size:12px; font-weight:500;
+      color:rgba(240,192,64,0.6); letter-spacing:0.1em;
+    }
+
+    .wheel-wrap {
+      position:relative; width:310px; height:310px;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .ring-outer {
+      position:absolute; inset:-18px; border-radius:50%;
+      background:conic-gradient(
+        #f0c040 0deg,#c8960c 30deg,#f0c040 60deg,#c8960c 90deg,
+        #f0c040 120deg,#c8960c 150deg,#f0c040 180deg,#c8960c 210deg,
+        #f0c040 240deg,#c8960c 270deg,#f0c040 300deg,#c8960c 330deg,#f0c040 360deg
+      );
+      animation:slowspin 20s linear infinite; opacity:0.9;
+    }
+    .ring-outer::after {
+      content:''; position:absolute; inset:5px; border-radius:50%; background:var(--bg);
+    }
+    @keyframes slowspin { to{transform:rotate(360deg);} }
+    .ring-glow {
+      position:absolute; inset:-26px; border-radius:50%;
+      background:radial-gradient(circle,rgba(240,192,64,0.18) 60%,transparent 80%);
+      animation:pulse-glow 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse-glow { 0%,100%{opacity:0.6;transform:scale(1);} 50%{opacity:1;transform:scale(1.04);} }
+
+    canvas#wheel {
+      position:relative; z-index:2; border-radius:50%; display:block;
+      box-shadow:
+        0 0 0 3px var(--gold2),
+        0 0 0 6px rgba(240,192,64,0.15),
+        0 0 60px rgba(240,192,64,0.3),
+        0 0 120px rgba(240,192,64,0.1);
+    }
+
+    .pointer-wrap {
+      position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+      z-index:20; display:flex; flex-direction:column; align-items:center;
+    }
+    .pointer-ball {
+      width:18px; height:18px; border-radius:50%;
+      background:radial-gradient(circle at 35% 35%,#fff 0%,var(--gold) 50%,var(--gold2) 100%);
+      box-shadow:0 2px 8px rgba(0,0,0,0.7),0 0 10px var(--glow);
+    }
+    .pointer-pin { width:3px; height:22px; background:linear-gradient(to bottom,var(--gold),var(--gold2)); border-radius:0 0 3px 3px; }
+
+    .center-overlay {
+      position:absolute; z-index:15;
+      width:100px; height:100px; border-radius:50%;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:radial-gradient(circle at 40% 35%,#2a2010 0%,#0e0a00 70%);
+      box-shadow:0 0 0 3px var(--gold),0 0 0 6px rgba(240,192,64,0.2),0 0 24px rgba(0,0,0,0.9),inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .center-star { font-size:22px; line-height:1; transition:opacity 0.3s; }
+    .center-number {
+      font-size:38px; font-weight:900; line-height:1;
+      background:linear-gradient(160deg,#fff 0%,var(--gold3) 40%,var(--gold) 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text; filter:drop-shadow(0 0 10px var(--gold));
+      position:absolute; opacity:0; transform:scale(0.4);
+      transition:opacity 0.5s cubic-bezier(0.34,1.56,0.64,1),transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .center-number.show { opacity:1; transform:scale(1); }
+    .center-star.hide   { opacity:0; }
+    .center-sub {
+      font-size:9px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase;
+      color:var(--gold); opacity:0; position:absolute; bottom:16px;
+      transition:opacity 0.4s 0.3s;
+    }
+    .center-sub.show { opacity:0.85; }
+
+    .btn-spin {
+      position:relative;
+      width:220px; height:60px; border:none; border-radius:30px;
+      font-size:20px; font-weight:900; letter-spacing:0.12em; text-transform:uppercase;
+      color:#1a0e00; cursor:pointer;
+      background:linear-gradient(145deg,var(--gold3) 0%,var(--gold) 45%,var(--gold2) 100%);
+      box-shadow:0 4px 0 #7a5a00,0 6px 30px rgba(240,192,64,0.5),inset 0 1px 0 rgba(255,255,255,0.6);
+      transition:transform 0.1s,box-shadow 0.1s;
+      overflow:hidden;
+    }
+    .btn-spin::before {
+      content:''; position:absolute; top:0; left:-60%; width:40%; height:100%;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent);
+      animation:shimmer 3s ease-in-out infinite;
+    }
+    .btn-spin:active { transform:translateY(3px); box-shadow:0 1px 0 #7a5a00,0 3px 14px rgba(240,192,64,0.4); }
+    .btn-spin:disabled { opacity:0.5; cursor:default; }
+
+    .confetti-piece {
+      position:fixed; pointer-events:none; z-index:200;
+      animation:cfall var(--dur) var(--ease) forwards var(--del);
+    }
+    @keyframes cfall {
+      0%   { transform:translate(0,0) rotate(0deg) scale(1); opacity:1; }
+      80%  { opacity:1; }
+      100% { transform:translate(var(--tx),var(--ty)) rotate(var(--rot)) scale(0.6); opacity:0; }
+    }
+  </style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+
+<!-- ══ INTRO SCREEN ══ -->
+<div id="introScreen">
+  <div class="intro-icon">🎡</div>
+
+  <div class="intro-question">
+    <h2>Hallo, wieviele Teilnehmer gibt es heute?</h2>
+    <p>Gib die Höchstzahl ein – das Rad zieht dann eine Zufallszahl für dich.</p>
+  </div>
+
+  <div class="input-panel">
+    <div class="input-label">Maximale Teilnehmerzahl</div>
+    <div class="num-display empty" id="numDisplay">0</div>
+
+    <div class="numpad" id="numpad">
+      <button class="numpad-key" data-v="1">1</button>
+      <button class="numpad-key" data-v="2">2</button>
+      <button class="numpad-key" data-v="3">3</button>
+      <button class="numpad-key" data-v="4">4</button>
+      <button class="numpad-key" data-v="5">5</button>
+      <button class="numpad-key" data-v="6">6</button>
+      <button class="numpad-key" data-v="7">7</button>
+      <button class="numpad-key" data-v="8">8</button>
+      <button class="numpad-key" data-v="9">9</button>
+      <button class="numpad-key key-del" data-v="del">⌫</button>
+      <button class="numpad-key key-0" data-v="0">0</button>
+    </div>
+
+    <button class="btn-confirm" id="btnConfirm">✓ &nbsp;BESTÄTIGEN</button>
+  </div>
+</div>
+
+<!-- ══ WHEEL SCREEN ══ -->
+<div id="wheelScreen">
+  <div style="text-align:center;">
+    <h1>GLÜCKSRAD</h1>
+    <div class="sub-max" id="subMax"></div>
+  </div>
+
+  <div class="wheel-wrap">
+    <div class="ring-glow"></div>
+    <div class="ring-outer"></div>
+    <canvas id="wheel" width="290" height="290"></canvas>
+    <div class="center-overlay" id="centerOverlay">
+      <div class="center-star" id="centerStar">★</div>
+      <div class="center-number" id="centerNumber"></div>
+      <div class="center-sub" id="centerSub">Deine Zahl</div>
+    </div>
+    <div class="pointer-wrap">
+      <div class="pointer-ball"></div>
+      <div class="pointer-pin"></div>
+    </div>
+  </div>
+
+  <button class="btn-spin" id="spinBtn">DREHEN</button>
+</div>
+
+<script>
+/* ══ BACKGROUND PARTICLES ══ */
+(function(){
+  const c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');
+  c.width=window.innerWidth; c.height=window.innerHeight;
+  const p=Array.from({length:55},()=>({
+    x:Math.random()*c.width,y:Math.random()*c.height,
+    r:Math.random()*1.8+0.3,vy:-(Math.random()*0.3+0.1),
+    alpha:Math.random()*0.6+0.2,phase:Math.random()*Math.PI*2,
+    speed:Math.random()*0.02+0.008
+  }));
+  function tick(){
+    ctx.clearRect(0,0,c.width,c.height);
+    p.forEach(q=>{
+      q.phase+=q.speed; q.y+=q.vy;
+      if(q.y<-4)q.y=c.height+4;
+      const a=q.alpha*(0.5+0.5*Math.sin(q.phase));
+      ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(240,192,64,${a.toFixed(2)})`;ctx.fill();
+    });
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+
+/* ══ INTRO / NUMPAD LOGIC ══ */
+let maxNumber = 0;
+const numDisplay  = document.getElementById('numDisplay');
+const btnConfirm  = document.getElementById('btnConfirm');
+
+document.getElementById('numpad').addEventListener('click', e => {
+  const key = e.target.closest('.numpad-key');
+  if (!key) return;
+  const v = key.dataset.v;
+  if (v === 'del') {
+    const s = numDisplay.textContent.replace(/^0$/, '');
+    numDisplay.textContent = s.slice(0, -1) || '0';
+  } else {
+    const cur = numDisplay.textContent === '0' ? '' : numDisplay.textContent;
+    const next = cur + v;
+    if (next.length > 4) return; // max 9999
+    numDisplay.textContent = next || '0';
+  }
+  const val = parseInt(numDisplay.textContent, 10) || 0;
+  numDisplay.classList.toggle('empty', val === 0);
+  btnConfirm.classList.toggle('active', val >= 2);
+});
+
+// Shake animation for invalid tap
+const shakeStyle = document.createElement('style');
+shakeStyle.textContent = `
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-8px)}
+    40%{transform:translateX(8px)}
+    60%{transform:translateX(-6px)}
+    80%{transform:translateX(6px)}
+  }
+  .shake { animation: shake 0.4s ease; }
+`;
+document.head.appendChild(shakeStyle);
+
+btnConfirm.addEventListener('click', () => {
+  const val = parseInt(numDisplay.textContent, 10) || 0;
+  if (val < 2) {
+    // Shake feedback
+    btnConfirm.classList.remove('shake');
+    void btnConfirm.offsetWidth; // reflow
+    btnConfirm.classList.add('shake');
+    btnConfirm.addEventListener('animationend', () => btnConfirm.classList.remove('shake'), {once:true});
+    // Also flash the display red briefly
+    numDisplay.style.transition = 'color 0.15s';
+    numDisplay.style.webkitTextFillColor = '#e74c3c';
+    setTimeout(() => { numDisplay.style.webkitTextFillColor = ''; }, 500);
+    return;
+  }
+  maxNumber = val;
+  document.getElementById('subMax').textContent = `1 – ${maxNumber} Teilnehmer`;
+  document.getElementById('introScreen').classList.add('exit');
+  document.getElementById('wheelScreen').classList.add('visible');
+});
+
+/* ══ WHEEL DRAW ══ */
+const canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,R=W/2-5;
+const ROULETTE_ORDER=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+const SEGMENTS=ROULETTE_ORDER.length;
+const REDS=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+function segColor(n){ return n===0?'#1a7a3a':REDS.has(n)?'#9b1c1c':'#111111'; }
+
+function drawWheel(angle){
+  ctx.clearRect(0,0,W,H);
+  const step=(2*Math.PI)/SEGMENTS;
+  for(let i=0;i<SEGMENTS;i++){
+    const s=angle+i*step-Math.PI/2, e=s+step;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,s,e);ctx.closePath();
+    ctx.fillStyle=segColor(ROULETTE_ORDER[i]);ctx.fill();
+  }
+  for(let i=0;i<SEGMENTS;i++){
+    const a=angle+i*step-Math.PI/2;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
+    ctx.strokeStyle='rgba(240,192,64,0.35)';ctx.lineWidth=0.8;ctx.stroke();
+  }
+  for(let i=0;i<SEGMENTS;i++){
+    const mid=angle+(i+0.5)*step-Math.PI/2;
+    const dx=cx+R*0.80*Math.cos(mid),dy=cy+R*0.80*Math.sin(mid);
+    const s=3.5;
+    ctx.save();ctx.translate(dx,dy);ctx.rotate(mid+Math.PI/2);
+    ctx.beginPath();ctx.moveTo(0,-s);ctx.lineTo(s*0.6,0);ctx.lineTo(0,s);ctx.lineTo(-s*0.6,0);ctx.closePath();
+    ctx.fillStyle='rgba(240,192,64,0.55)';ctx.fill();ctx.restore();
+  }
+  ctx.beginPath();ctx.arc(cx,cy,R,0,2*Math.PI);ctx.strokeStyle='rgba(240,192,64,0.7)';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,R*0.62,0,2*Math.PI);ctx.strokeStyle='rgba(240,192,64,0.2)';ctx.lineWidth=1.2;ctx.stroke();
+  const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,50);
+  cg.addColorStop(0,'#140e00');cg.addColorStop(1,'#0a0700');
+  ctx.beginPath();ctx.arc(cx,cy,50,0,2*Math.PI);ctx.fillStyle=cg;ctx.fill();
+  ctx.strokeStyle='rgba(240,192,64,0.5)';ctx.lineWidth=2;ctx.stroke();
+}
+let currentAngle=0, spinning=false;
+drawWheel(currentAngle);
+
+/* ══ FANFARE (Web Audio) ══ */
+function playFanfare(cb){
+  try{
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    const vol=ac.createGain();vol.gain.setValueAtTime(0.001,ac.currentTime);vol.connect(ac.destination);
+    const notes=[
+      {f:392,t:0.00,d:0.18,g:0.18},{f:523,t:0.18,d:0.18,g:0.22},
+      {f:659,t:0.36,d:0.20,g:0.25},{f:784,t:0.56,d:0.55,g:0.32},
+      {f:659,t:0.62,d:0.15,g:0.12},{f:523,t:0.68,d:0.12,g:0.10},
+      {f:1047,t:1.00,d:0.70,g:0.28},{f:784,t:1.05,d:0.65,g:0.18},
+    ];
+    notes.forEach(n=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='triangle';o.frequency.setValueAtTime(n.f,ac.currentTime);
+      g.gain.setValueAtTime(0.001,ac.currentTime+n.t);
+      g.gain.linearRampToValueAtTime(n.g,ac.currentTime+n.t+0.04);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+n.t+n.d);
+      o.connect(g);g.connect(vol);o.start(ac.currentTime+n.t);o.stop(ac.currentTime+n.t+n.d+0.05);
+    });
+    const brass=[{f:392,t:0.00,d:0.18},{f:523,t:0.18,d:0.18},{f:784,t:0.56,d:0.55},{f:1047,t:1.00,d:0.70}];
+    brass.forEach(n=>{
+      const o=ac.createOscillator(),g=ac.createGain(),flt=ac.createBiquadFilter();
+      flt.type='lowpass';flt.frequency.value=1200;o.type='sawtooth';
+      o.frequency.setValueAtTime(n.f,ac.currentTime);
+      g.gain.setValueAtTime(0.001,ac.currentTime+n.t);
+      g.gain.linearRampToValueAtTime(0.07,ac.currentTime+n.t+0.05);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+n.t+n.d);
+      o.connect(flt);flt.connect(g);g.connect(vol);
+      o.start(ac.currentTime+n.t);o.stop(ac.currentTime+n.t+n.d+0.05);
+    });
+    // Cymbal
+    (function(){
+      const buf=ac.createBuffer(1,ac.sampleRate*1.2,ac.sampleRate);
+      const data=buf.getChannelData(0);
+      for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(ac.sampleRate*0.4));
+      const src=ac.createBufferSource();src.buffer=buf;
+      const flt=ac.createBiquadFilter();flt.type='highpass';flt.frequency.value=4000;
+      const g=ac.createGain();
+      g.gain.setValueAtTime(0.001,ac.currentTime+0.55);
+      g.gain.linearRampToValueAtTime(0.22,ac.currentTime+0.58);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+1.7);
+      src.connect(flt);flt.connect(g);g.connect(vol);src.start(ac.currentTime+0.55);
+    })();
+
+    // Callback after fanfare ends (~1.8s) to trigger speech
+    const fanfareDuration = 1800;
+    if(cb) setTimeout(cb, fanfareDuration);
+
+  }catch(e){console.warn('Audio err',e);if(cb)cb();}
+}
+
+/* ══ SPEECH SYNTHESIS ══ */
+
+// iOS requires a silent "warm-up" utterance triggered by a real user tap
+// We fire it on the very first spin button press
+let speechWarmedUp = false;
+function warmUpSpeech(){
+  if(speechWarmedUp || !window.speechSynthesis) return;
+  speechWarmedUp = true;
+  const warmUp = new SpeechSynthesisUtterance(' ');
+  warmUp.volume = 0;
+  window.speechSynthesis.speak(warmUp);
+}
+
+function pickMaleVoice(){
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = ['Daniel','Arthur','Gordon','Alex','Fred','Tom','Bruce','Junior','Ralph'];
+  for(const name of preferred){
+    const v = voices.find(v => v.lang.startsWith('en') && v.name.includes(name));
+    if(v) return v;
+  }
+  return voices.find(v => v.lang.startsWith('en')) || null;
+}
+
+function speakWinner(number){
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+
+  function doSpeak(){
+    const utter = new SpeechSynthesisUtterance(`The winner is number ${number}`);
+    utter.lang    = 'en-US';
+    utter.rate    = 0.82;
+    utter.pitch   = 0.8;
+    utter.volume  = 1;
+    const voice = pickMaleVoice();
+    if(voice) utter.voice = voice;
+    window.speechSynthesis.speak(utter);
+  }
+
+  // If voices already loaded – speak immediately
+  if(window.speechSynthesis.getVoices().length > 0){
+    doSpeak();
+  } else {
+    // Wait for voices to load (mainly first call on some browsers)
+    window.speechSynthesis.onvoiceschanged = () => { doSpeak(); };
+  }
+}
+
+// Eagerly load voice list
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+
+/* ══ SPIN LOGIC ══ */
+const btn          = document.getElementById('spinBtn');
+const centerNumber = document.getElementById('centerNumber');
+const centerStar   = document.getElementById('centerStar');
+const centerSub    = document.getElementById('centerSub');
+
+btn.addEventListener('click', () => {
+  if(spinning) return;
+  warmUpSpeech(); // iOS: must be called directly inside user gesture
+  spinning=true; btn.disabled=true;
+  centerNumber.classList.remove('show');
+  centerSub.classList.remove('show');
+  centerStar.classList.remove('hide');
+
+  const totalRot = (Math.random()*10+8)*2*Math.PI;
+  const duration = 4000+Math.random()*1500;
+  const startAng = currentAngle;
+  const startTime = performance.now();
+
+  const tickAc = new(window.AudioContext||window.webkitAudioContext)();
+  let lastTickAngle = currentAngle;
+  function maybeTick(a){
+    const step=(2*Math.PI)/SEGMENTS;
+    const pi=Math.floor(((lastTickAngle%(2*Math.PI))+2*Math.PI)/step);
+    const ci=Math.floor(((a%(2*Math.PI))+2*Math.PI)/step);
+    if(pi!==ci){
+      try{
+        const o=tickAc.createOscillator(),g=tickAc.createGain();
+        o.type='sine';o.frequency.value=1200;
+        g.gain.setValueAtTime(0.08,tickAc.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001,tickAc.currentTime+0.04);
+        o.connect(g);g.connect(tickAc.destination);
+        o.start();o.stop(tickAc.currentTime+0.04);
+      }catch(e){}
+      lastTickAngle=a;
+    }
+  }
+
+  function animate(now){
+    const t=Math.min((now-startTime)/duration,1);
+    const eased=1-Math.pow(1-t,3.5);
+    currentAngle=startAng+eased*totalRot;
+    maybeTick(currentAngle);
+    drawWheel(currentAngle);
+    if(t<1){ requestAnimationFrame(animate); }
+    else { spinning=false; btn.disabled=false; showResult(currentAngle); }
+  }
+  requestAnimationFrame(animate);
+});
+
+function showResult(angle){
+  // Random number between 1 and maxNumber
+  const number = Math.floor(Math.random() * maxNumber) + 1;
+
+  setTimeout(()=>{
+    centerStar.classList.add('hide');
+    centerNumber.textContent = number;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      centerNumber.classList.add('show');
+      centerSub.classList.add('show');
+    }));
+
+    spawnConfetti();
+
+    // Play fanfare, then announce winner
+    playFanfare(() => {
+      setTimeout(() => speakWinner(number), 600);
+    });
+
+  }, 300);
+}
+
+/* ══ MEGA CONFETTI ══ */
+function spawnConfetti(){
+  const SHAPES=['circle','square','diamond','ribbon'];
+  const COLORS=['#f0c040','#ffe599','#ffffff','#c0392b','#e74c3c','#27ae60','#2980b9','#8e44ad','#e67e22','#ff6b9d'];
+  const ox=window.innerWidth/2, oy=window.innerHeight*0.38;
+
+  function makepiece(ox,oy,distMin,distMax,sizeMin,sizeMax,delMax,wave){
+    const el=document.createElement('div');
+    el.className='confetti-piece';
+    const shape=SHAPES[Math.floor(Math.random()*SHAPES.length)];
+    const color=COLORS[Math.floor(Math.random()*COLORS.length)];
+    const size=sizeMin+Math.random()*(sizeMax-sizeMin);
+    const ang=(Math.random()*360)*Math.PI/180;
+    const dist=distMin+Math.random()*(distMax-distMin);
+    const tx=Math.cos(ang)*dist, ty=Math.sin(ang)*dist-80;
+    const dur=(0.8+Math.random()*1.4).toFixed(2);
+    const del=(Math.random()*delMax).toFixed(2);
+    const rot=(Math.random()*1440-720)+'deg';
+    const ease=Math.random()>0.5?'cubic-bezier(0.2,0.8,0.5,1)':'ease-out';
+    let br='2px';
+    if(shape==='circle') br='50%';
+    if(shape==='ribbon'){el.style.width=size*2.5+'px';el.style.height=size*0.5+'px';}
+    if(shape==='diamond') el.style.transform='rotate(45deg)';
+    el.style.cssText+=`left:${ox}px;top:${oy}px;width:${size}px;height:${size}px;background:${color};border-radius:${br};--tx:${tx.toFixed(0)}px;--ty:${ty.toFixed(0)}px;--dur:${dur}s;--del:${del}s;--rot:${rot};--ease:${ease};`;
+    document.body.appendChild(el);
+    el.addEventListener('animationend',()=>el.remove(),{once:true});
+  }
+
+  // Wave 1 – burst from center
+  for(let i=0;i<150;i++) makepiece(ox,oy,60,300,5,14,0.4);
+  // Wave 2 – wider slower
+  setTimeout(()=>{ for(let i=0;i<80;i++) makepiece(ox,oy,180,400,4,9,0.3); },350);
+  // Wave 3 – from top corners
+  setTimeout(()=>{
+    for(let i=0;i<50;i++) makepiece(ox*0.2, oy*0.2, 80,260,4,10,0.3);
+    for(let i=0;i<50;i++) makepiece(ox*1.8, oy*0.2, 80,260,4,10,0.3);
+  },500);
+}
+</script>
+</body>
+</html>
